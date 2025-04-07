@@ -32,3 +32,10 @@ def crc_view(request):
 
 def test_crc_page(request):
     return render(request, "simulation/test_crc.html")
+
+
+def test_node_page(request):
+    return render(request, "simulation/node_test.html")
+
+def test_master_page(request):
+    return render(request, "simulation/master_test.html")

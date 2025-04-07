@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Node</title>
+</head>
+<body>
+    <h1>Test Node</h1>
+    <p>Podaj ID węzła (np. 1, 2, ... 10):</p>
+    <input type="text" id="nodeId" value="1">
+    <button onclick="connectNode()">Połącz jako Node</button>
+    <pre id="nodeLog"></pre>
+<input type="text" id="target" placeholder="Target (node id lub master)" value="master">
+<input type="text" id="message" placeholder="Message" value="Hello from node">
+<button onclick="sendMessage()">Wyślij wiadomość</button>
+    <script>
+        let nodeSocket;
+
+        function connectNode() {
+            const nodeId = document.getElementById('nodeId').value;
+            nodeSocket = new WebSocket(`ws://${window.location.host}/ws/node/${nodeId}/`);
+            
+            nodeSocket.onopen = () => {
+                document.getElementById('nodeLog').innerText += 'Połączono jako Node ' + nodeId + '\n';
+            };
+
+            nodeSocket.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                document.getElementById('nodeLog').innerText += 'Otrzymano: ' + JSON.stringify(data) + '\n';
+            };
+
+            nodeSocket.onclose = () => {
+                document.getElementById('nodeLog').innerText += 'Rozłączono\n';
+            };
+        }
+          function sendMessage() {
+    const target = document.getElementById('target').value;
+    const message = document.getElementById('message').value;
+    nodeSocket.send(JSON.stringify({target: target, message: message}));
+  }
+    </script>
+</body>
+</html>

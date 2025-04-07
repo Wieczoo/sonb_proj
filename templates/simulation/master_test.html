@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Master</title>
+</head>
+<body>
+    <h1>Test Master</h1>
+    <p>Podaj komendę:</p>
+    <input type="text" id="command" value="Wykonaj zadanie">
+    <p>Cel: wpisz numer węzła (np. 1) lub "all" dla wszystkich:</p>
+    <input type="text" id="target" value="all">
+    <button onclick="sendCommand()">Wyślij komendę</button>
+    <pre id="masterLog"></pre>
+
+    <script>
+        let masterSocket = new WebSocket(`ws://${window.location.host}/ws/master/`);
+
+        masterSocket.onopen = () => {
+            document.getElementById('masterLog').innerText += 'Master połączony\n';
+        };
+
+        masterSocket.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            document.getElementById('masterLog').innerText += 'Otrzymano: ' + JSON.stringify(data) + '\n';
+        };
+
+        masterSocket.onclose = () => {
+            document.getElementById('masterLog').innerText += 'Master rozłączony\n';
+        };
+
+        function sendCommand() {
+            const command = document.getElementById('command').value;
+            const target = document.getElementById('target').value;
+            const msg = { command: command, target: target };
+            masterSocket.send(JSON.stringify(msg));
+            document.getElementById('masterLog').innerText += 'Wysłano: ' + JSON.stringify(msg) + '\n';
+        }
+    </script>
+</body>
+</html>
