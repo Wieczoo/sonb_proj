@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 
 const Node = ({ id, status, onClick, isSelectedSource, isSelectedDestination }) => {
   let style = {
@@ -35,9 +36,7 @@ function App() {
   const [serverIp, setServerIp] = useState('127.0.0.1');
   const [serverPort, setServerPort] = useState('8000');
 
-  const [nodes, setNodes] = useState(
-    Array.from({ length: 10 }, (_, i) => ({ id: i + 1, status: 'Idle' }))
-  );
+  const [nodes, setNodes] = useState([]);
   const [selectedSource, setSelectedSource] = useState(null);
   const [selectedDestination, setSelectedDestination] = useState(null);
   const [errorType, setErrorType] = useState('none'); 
@@ -48,6 +47,35 @@ function App() {
     setLogs(prevLogs => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prevLogs]);
   }, []);
 
+  const fetchNodes = async () => {
+    try {
+      const response = await axios.get(`http://${serverIp}:${serverPort}/simulation/nodes/`);
+      const fetchedNodes = response.data.nodes || [];
+      setNodes(
+        fetchedNodes.map((node) => ({
+          id: node.id,
+          status: node.status || 'Idle',
+        }))
+      );
+      addLog('Pobrano listę węzłów z serwera.');
+    } catch (error) {
+      addLog(`Błąd podczas pobierania węzłów: ${error.message}`);
+    }
+  };
+
+  useEffect(() => {
+    fetchNodes();
+  }, [serverIp, serverPort]);
+
+  const handleCreateTenNodes = async () => {
+    try {
+      const response = await axios.post(`http://${serverIp}:${serverPort}/simulation/nodes/ensure-ten-online/`);
+      addLog(`Utworzono 10 węzłów: ${response.data.message || 'Sukces'}`);
+      fetchNodes(); // Odśwież listę węzłów po utworzeniu
+    } catch (error) {
+      addLog(`Błąd podczas tworzenia węzłów: ${error.message}`);
+    }
+  };
 
   // Obsługa kliknięcia węzła
   const handleNodeClick = (nodeId) => {
@@ -68,6 +96,21 @@ function App() {
     }
   };
 
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
   const handleStartSimulation = () => {
     if (!selectedSource || !selectedDestination) {
       addLog('BŁĄD: Proszę wybrać węzeł źródłowy i docelowy.');
@@ -76,7 +119,26 @@ function App() {
     // Tutaj w przyszłości będzie logika komunikacji z backendem
     addLog(`Rozpoczynanie symulacji: ${selectedSource} -> ${selectedDestination}. Typ błędu: ${errorType}`);
     // Miejsce na wywoływanie transmisji
+    axios.post(`http://${serverIp}:${serverPort}/simulation/simulate/`, {
+      source_id: selectedSource,
+      destination_id: selectedDestination,
+      data_bits: "1010101010", // Example hardcoded data bits
+      key: "1101", // Example hardcoded key
+      delay: 0.5, // Example hardcoded delay in seconds
+      packet_loss_percentage: 0.0, // Example hardcoded packet loss percentage
+      error_params: { type: errorType }, // Example error parameters
+    })
+    .then(response => {
+      debugger;
+      addLog(`Symulacja zakończona sukcesem: ${response.data.message}`);
+    })
+    .catch(error => {
+      debugger;
+      addLog(`Błąd podczas symulacji: ${error.message}`);
+    });
   };
+
+
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', padding: '20px' }}>
@@ -118,6 +180,17 @@ function App() {
             isSelectedDestination={node.id === selectedDestination}
           />
         ))}
+      </div>
+
+
+      {/* Przycisk do tworzenia węzłów */}
+      <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ccc' }}>
+        <button
+          onClick={handleCreateTenNodes}
+          style={{ padding: '10px 15px', cursor: 'pointer', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '5px' }}
+        >
+          Utwórz 10 węzłów
+        </button>
       </div>
 
        {/* Sekcja kontroli symulacji */}
