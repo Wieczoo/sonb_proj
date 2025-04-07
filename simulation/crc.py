@@ -39,14 +39,16 @@ class CRC:
 
     def receiverSide(self, key, data):
         r = self.crc(data, key)
-        if r == '0' * len(key):
+        # Oczekujemy, że r będzie miało długość (len(key) - 1)
+        if r == '0' * (len(key) - 1):
             return True
         else:
             return False
 
+
 if __name__ == "__main__":
-    data = '100100'
-    key = '1101'
+    data = '101100110000'
+    key = '10011'
     crc_instance = CRC()
     encoded, rem = crc_instance.encodedData(data, key)
     print("Zakodowane dane:", encoded)

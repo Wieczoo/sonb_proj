@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Symulacji Transmisji</title>
+</head>
+<body>
+  <h1>Test Symulacji Transmisji</h1>
+  <form id="simForm">
+    <label for="source_id">ID źródłowego węzła:</label>
+    <input type="number" id="source_id" value="1"><br><br>
+
+    <label for="destination_id">ID docelowego węzła:</label>
+    <input type="number" id="destination_id" value="2"><br><br>
+
+    <label for="data">Dane (ciąg bitów):</label>
+    <input type="text" id="data" value="100100"><br><br>
+
+    <label for="key">Klucz CRC:</label>
+    <input type="text" id="key" value="1101"><br><br>
+
+    <label for="delay">Opóźnienie (s):</label>
+    <input type="number" step="0.1" id="delay" value="0.5"><br><br>
+
+    <label for="packet_loss_percentage">Procent utraty pakietu:</label>
+    <input type="number" step="0.1" id="packet_loss_percentage" value="0"><br><br>
+
+    <label for="error_type">Typ błędu (np. single, double, odd, burst):</label>
+    <input type="text" id="error_type" value=""><br><br>
+
+    <label for="error_count">Liczba błędów (dla odd/burst):</label>
+    <input type="number" id="error_count" value="1"><br><br>
+
+    <button type="submit">Symuluj transmisję</button>
+  </form>
+
+  <pre id="result"></pre>
+
+  <script>
+    document.getElementById('simForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const source_id = document.getElementById('source_id').value;
+      const destination_id = document.getElementById('destination_id').value;
+      const data = document.getElementById('data').value;
+      const key = document.getElementById('key').value;
+      const delay = parseFloat(document.getElementById('delay').value);
+      const packet_loss_percentage = parseFloat(document.getElementById('packet_loss_percentage').value);
+      const error_type = document.getElementById('error_type').value;
+      const error_count = parseInt(document.getElementById('error_count').value);
+      
+      let error_params = null;
+      if (error_type) {
+        error_params = {
+          error_type: error_type,
+          error_count: error_count
+        };
+      }
+      
+      const payload = {
+        source_id: source_id,
+        destination_id: destination_id,
+        data: data,
+        key: key,
+        delay: delay,
+        packet_loss_percentage: packet_loss_percentage,
+        error_params: error_params
+      };
+      
+      fetch('/simulation/simulate/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(response => response.json())
+      .then(result => {
+        document.getElementById('result').innerText = JSON.stringify(result, null, 2);
+      })
+      .catch(error => {
+        document.getElementById('result').innerText = 'Błąd: ' + error;
+      });
+    });
+
+    // Funkcja do pobierania tokenu CSRF
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+  </script>
+</body>
+</html>
