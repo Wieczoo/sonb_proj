@@ -4,7 +4,7 @@ from django.shortcuts import render
 from .crc import CRC
 import json
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST,require_http_methods
 from .transmission import simulate_transmission
 from .models import Node, Transmission, EventLog
 
@@ -100,7 +100,7 @@ def simulate_transmission_view(request):
 
 def get_or_create_node(node_id):
     """
-    Pobiera Node o danym identyfikatorze lub tworzy go, jeśli nie istnieje.
+  ub  Pobiera Node o danym identyfikatorze l tworzy go, jeśli nie istnieje.
     Dla nowo utworzonego węzła ustawiamy domyślne wartości.
     """
     try:
@@ -130,3 +130,64 @@ def get_active_node(node_id):
         return None
 def test_simulation_page(request):
     return render(request, "simulation/test_simulation.html")
+
+
+@require_http_methods(["GET"])
+def get_all_nodes(request):
+    nodes = Node.objects.filter(status="online")
+    data = [{
+        "id": node.id,
+        "name": node.name,
+        "ip_address": node.ip_address,
+        "status": node.status,
+    } for node in nodes]
+    return JsonResponse({"nodes": data})
+
+@require_POST
+def create_node(request):
+    try:
+        payload = json.loads(request.body)
+        name = payload.get("name")
+        ip_address = payload.get("ip_address", "127.0.0.1")  # opcjonalne, domyślnie localhost
+        status = payload.get("status", "online")
+
+        if not name:
+            return JsonResponse({"error": "Pole 'name' jest wymagane."}, status=400)
+
+        node = Node.objects.create(name=name, ip_address=ip_address, status=status)
+        return JsonResponse({
+            "id": node.id,
+            "name": node.name,
+            "ip_address": node.ip_address,
+            "status": node.status
+        }, status=201)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+@require_POST
+def ensure_ten_online_nodes(request):
+    try:
+        existing_online_nodes = Node.objects.filter(status="online").count()
+        nodes_to_create = 10 - existing_online_nodes
+
+        created_nodes = []
+        for i in range(nodes_to_create):
+            node = Node.objects.create(
+                name=f"AutoNode {existing_online_nodes + i + 1}",
+                ip_address=f"127.0.0.{existing_online_nodes + i + 1}",
+                status="online"
+            )
+            created_nodes.append({
+                "id": node.id,
+                "name": node.name,
+                "ip_address": node.ip_address,
+                "status": node.status
+            })
+
+        return JsonResponse({
+            "message": f"Upewniono się, że jest 10 węzłów online.",
+            "new_nodes_created": nodes_to_create,
+            "created_nodes": created_nodes
+        })
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
