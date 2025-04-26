@@ -1,5 +1,5 @@
 # simulation/views.py
-
+import sys
 from django.shortcuts import render
 from .crc import CRC
 import json
@@ -7,7 +7,10 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST,require_http_methods
 from .transmission import simulate_transmission
 from .models import Node, Transmission, EventLog
-
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import permission_required 
+import logging
+logger = logging.getLogger(__name__)
 @require_POST
 def crc_view(request):
     try:
@@ -163,7 +166,7 @@ def create_node(request):
         }, status=201)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-
+@csrf_exempt
 @require_POST
 def ensure_ten_online_nodes(request):
     try:
@@ -189,5 +192,43 @@ def ensure_ten_online_nodes(request):
             "new_nodes_created": nodes_to_create,
             "created_nodes": created_nodes
         })
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+@csrf_exempt
+@require_POST
+def shutdown_master(request):
+    try:
+        payload = json.loads(request.body)
+        source_id = payload.get("source_id")
+
+        if not source_id:
+            return JsonResponse({"error": "Brakuje ID węzła źródłowego."}, status=400)
+
+        node = Node.objects.get(id=source_id)
+        node.status = "offline"
+        node.save()
+        return JsonResponse({"status": f"Węzeł źródłowy {node.name} został wyłączony."})
+    except Node.DoesNotExist:
+        return JsonResponse({"error": "Węzeł źródłowy nie istnieje."}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_POST
+def shutdown_node(request):
+    try:
+        payload = json.loads(request.body)
+        destination_id = payload.get("destination_id")
+
+        if not destination_id:
+            return JsonResponse({"error": "Brakuje ID węzła docelowego."}, status=400)
+
+        node = Node.objects.get(id=destination_id)
+        node.status = "offline"
+        node.save()
+        return JsonResponse({"status": f"Węzeł docelowy {node.name} został wyłączony."})
+    except Node.DoesNotExist:
+        return JsonResponse({"error": "Nie znaleziono węzła docelowego."}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
