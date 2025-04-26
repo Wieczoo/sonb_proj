@@ -40,7 +40,9 @@ function App() {
   const [selectedSource, setSelectedSource] = useState(null);
   const [selectedDestination, setSelectedDestination] = useState(null);
   const [errorType, setErrorType] = useState('none'); 
-
+  const [dataBits,setDataBits] = useState(''); 
+  const [errorCount, setErrorCount] = useState(1);
+  const [dataKey, setDataKey] = useState('');
   const [logs, setLogs] = useState([]);
 
   const addLog = useCallback((message) => {
@@ -69,7 +71,7 @@ function App() {
 
   const handleCreateTenNodes = async () => {
     try {
-      const response = await axios.post(`http://${serverIp}:${serverPort}/simulation/nodes/ensure-ten-online/`);
+      const response = await axios.post(`http://${serverIp}:${serverPort}/simulation/nodes/ensure_ten_online/`);
       addLog(`Utworzono 10 węzłów: ${response.data.message || 'Sukces'}`);
       fetchNodes(); // Odśwież listę węzłów po utworzeniu
     } catch (error) {
@@ -96,41 +98,29 @@ function App() {
     }
   };
 
-  function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      const cookies = document.cookie.split(';');
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    return cookieValue;
-  }
 
   const handleStartSimulation = () => {
     if (!selectedSource || !selectedDestination) {
       addLog('BŁĄD: Proszę wybrać węzeł źródłowy i docelowy.');
       return;
     }
-    // Tutaj w przyszłości będzie logika komunikacji z backendem
+  
     addLog(`Rozpoczynanie symulacji: ${selectedSource} -> ${selectedDestination}. Typ błędu: ${errorType}`);
-    // Miejsce na wywoływanie transmisji
+  
     axios.post(`http://${serverIp}:${serverPort}/simulation/simulate/`, {
       source_id: selectedSource,
       destination_id: selectedDestination,
-      data_bits: "1010101010", // Example hardcoded data bits
-      key: "1101", // Example hardcoded key
-      delay: 0.5, // Example hardcoded delay in seconds
-      packet_loss_percentage: 0.0, // Example hardcoded packet loss percentage
-      error_params: { type: errorType }, // Example error parameters
+      data: dataBits, 
+      key: dataKey, 
+      delay: 0.5, 
+      packet_loss_percentage: 0.0, 
+      error_params: { 
+        error_count: errorCount
+       ,error_type:  errorType}, 
     })
     .then(response => {
       debugger;
-      addLog(`Symulacja zakończona sukcesem: ${response.data.message}`);
+      addLog(`Symulacja zakończona sukcesem: ${JSON.stringify(response.data)}`);
     })
     .catch(error => {
       debugger;
@@ -193,40 +183,60 @@ function App() {
         </button>
       </div>
 
-       {/* Sekcja kontroli symulacji */}
-       <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ccc' }}>
-           <h2>Kontrola Symulacji</h2>
-           <div>
-               Wybrany węzeł źródłowy: <strong>{selectedSource || 'Brak'}</strong>
-           </div>
+      {/* Sekcja kontroli symulacji */}
+        <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ccc' }}>
+            <h2>Kontrola Symulacji</h2>
             <div>
-               Wybrany węzeł docelowy: <strong>{selectedDestination || 'Brak'}</strong>
-           </div>
-            <div style={{ marginTop: '10px' }}>
-                <label htmlFor="errorType">Typ błędu do wprowadzenia:</label>
-                <select
-                    id="errorType"
-                    value={errorType}
-                    onChange={(e) => setErrorType(e.target.value)}
-                    style={{ marginLeft: '10px', marginRight: '20px' }}
-                >
-                    <option value="none">Brak błędu</option>
-                    <option value="single_bit">Pojedyncze przekłamanie bitu</option> {/* [source: 15] */}
-                    <option value="double_bit">Błędy podwójne</option> {/* [source: 16] */}
-                    <option value="odd_bits">Błędy o nieparzystej liczbie przekłamań</option> {/* [source: 17] */}
-                    <option value="burst">Błędy burstowe</option> {/* [source: 18] */}
-                </select>
+           Wybrany węzeł źródłowy: <strong>{selectedSource || 'Brak'}</strong>
             </div>
-           <button
-             onClick={handleStartSimulation}
-             disabled={!selectedSource || !selectedDestination}
-             style={{ marginTop: '15px', padding: '10px 15px', cursor: !selectedSource || !selectedDestination ? 'not-allowed' : 'pointer' }}
-           >
-             Rozpocznij Symulację Transmisji
-           </button>
-       </div>
+             <div>
+           Wybrany węzeł docelowy: <strong>{selectedDestination || 'Brak'}</strong>
+            </div>
+             <div style={{ marginTop: '10px' }}>
+            <label htmlFor="errorType">Typ błędu do wprowadzenia:</label>
+            <select
+                id="errorType"
+                value={errorType}
+                onChange={(e) => setErrorType(e.target.value)}
+                style={{ marginLeft: '10px', marginRight: '20px' }}
+            >
+                <option value="none">Brak błędu</option>
+                <option value="single">Pojedyncze przekłamanie bitu</option> 
+                <option value="double">Błędy podwójne</option>
+                <option value="odd">Błędy o nieparzystej liczbie przekłamań</option> 
+                <option value="burst">Błędy burstowe</option> 
+            </select>
+             </div>
+             <div style={{ marginTop: '10px' }}>
+            <label htmlFor="dataBits">Wprowadź bity do transmisji:</label>
+            <input
+                id="dataBits"
+                type="text"
+                value={dataBits}
+                onChange={(e) => setDataBits(e.target.value)}
+                style={{ marginLeft: '10px', width: '200px' }}
+            />
+             </div>
+             <div style={{ marginTop: '10px' }}>
+            <label htmlFor="dataBits">Wprowadź klucz do transmisji:</label>
+            <input
+                id="dataKey"
+                type="text"
+                value={dataKey}
+                onChange={(e) => setDataKey(e.target.value)}
+                style={{ marginLeft: '10px', width: '200px' }}
+            />
+             </div>
+            <button
+              onClick={handleStartSimulation}
+              disabled={!selectedSource || !selectedDestination || !dataBits}
+              style={{ marginTop: '15px', padding: '10px 15px', cursor: !selectedSource || !selectedDestination || !dataBits ? 'not-allowed' : 'pointer' }}
+            >
+              Rozpocznij Symulację Transmisji
+            </button>
+        </div>
 
-        {/* Sekcja logów */}
+         {/* Sekcja logów */}
         <div style={{ marginTop: '20px' }}>
             <h2>Logi Symulacji</h2>
             <textarea
