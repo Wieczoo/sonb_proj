@@ -4,7 +4,7 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from simulation.models import ActiveConnection, Node
-
+from simulation.views import simulate_failure
 
 class NodeConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -34,26 +34,32 @@ class NodeConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
         print(f"Received from node {self.node_id}: {data}")
 
-        # Jeśli wiadomość zawiera 'target' i 'message', przekazujemy ją dalej
+        # Symulacja wyłączonego serwera źródłowego
+        node = await sync_to_async(Node.objects.filter(id=self.node_id).first)()
+        if node and node.status == "offline":
+            await self.send(text_data=json.dumps({
+                'error': f"Source server {self.node_id} is offline. Message ignored."
+            }))
+            print(f"Message from node {self.node_id} ignored due to offline status.")
+            return
+
+        # Obsługa wiadomości
         if "target" in data and "message" in data:
             target = data["target"]
             message = data["message"]
             if target.lower() == "master":
-                # Przesyłamy wiadomość do grupy "master"
                 await self.channel_layer.group_send("master", {
                     'type': 'node_message',
                     'node': self.node_id,
                     'message': message
                 })
             else:
-                # Przesyłamy wiadomość do konkretnego węzła, np. 'node_3'
                 await self.channel_layer.group_send(f'node_{target}', {
                     'type': 'node_message',
                     'node': self.node_id,
                     'message': message
                 })
         else:
-            # Jeśli nie ma targetu, możemy wysłać echo albo zwrócić błąd
             await self.send(text_data=json.dumps({
                 'error': 'Brak pola "target" lub "message" w przesłanej wiadomości'
             }))
@@ -98,23 +104,34 @@ class NodeConsumer(AsyncWebsocketConsumer):
 
 class MasterConsumer(AsyncWebsocketConsumer):
     async def connect(self):
+        global simulate_failure  # Upewnij się, że używasz globalnej zmiennej
+        if simulate_failure:
+            await self.close()  # Zamykamy połączenie natychmiast
+            print("Master server failure simulated")
+            return
+
         await self.accept()
-        # Dołączamy do grupy "master", aby otrzymywać wiadomości od węzłów
         await self.channel_layer.group_add("master", self.channel_name)
         print("Master connected")
 
-    async def disconnect(self, close_code):
-        await self.channel_layer.group_discard("master", self.channel_name)
-        print("Master disconnected")
-
     async def receive(self, text_data):
+        global simulate_failure
+        if simulate_failure:
+            await self.send(text_data=json.dumps({
+                'error': 'Master server is currently unavailable. Message ignored.'
+            }))
+            return
+
+        # Oryginalna logika przetwarzania wiadomości
         data = json.loads(text_data)
         command = data.get('command')
-        target = data.get('target')  # może być numer węzła (np. "3") lub "all" dla wszystkich
+        target = data.get('target')
 
         if not command:
             await self.send(text_data=json.dumps({"error": "Brak komendy"}))
             return
+
+        print(f"Master received command: {command} for target: {target}")
 
         if target == "all":
             await self.channel_layer.group_send("nodes", {
@@ -122,7 +139,8 @@ class MasterConsumer(AsyncWebsocketConsumer):
                 'command': command
             })
         else:
-            await self.channel_layer.group_send(f'node_{target}', {
+            target_group_name = f'node_{target}'
+            await self.channel_layer.group_send(target_group_name, {
                 'type': 'command',
                 'command': command
             })
@@ -131,12 +149,4 @@ class MasterConsumer(AsyncWebsocketConsumer):
             'status': 'Komenda wysłana',
             'command': command,
             'target': target
-        }))
-
-    async def node_message(self, event):
-        sender = event.get('node')
-        message = event.get('message')
-        await self.send(text_data=json.dumps({
-            'from': sender,
-            'message': message
         }))

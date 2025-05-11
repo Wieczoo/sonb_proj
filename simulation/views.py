@@ -11,6 +11,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import permission_required 
 import logging
 logger = logging.getLogger(__name__)
+
+simulate_failure = False
 @require_POST
 def crc_view(request):
     try:
@@ -47,6 +49,7 @@ def test_master_page(request):
 
 @require_POST
 def simulate_transmission_view(request):
+    print("simulate_transmission_view")
     try:
         payload = json.loads(request.body)
         source_id = payload.get('source_id')
@@ -60,13 +63,21 @@ def simulate_transmission_view(request):
         if not (source_id and destination_id and data_bits and key):
             return JsonResponse({'error': "source_id, destination_id, data oraz key są wymagane."}, status=400)
 
+
+
         # Pobieramy tylko aktywne węzły
         source = get_active_node(source_id)
         destination = get_active_node(destination_id)
 
         if source is None or destination is None:
-            return JsonResponse({'error': "Jeden lub oba węzły nie są aktualnie podłączone."}, status=400)
+            return JsonResponse({'error': "Jeden lub oba węzły nie są aktywne."}, status=400)
 
+        if source.status == "offline":
+            return JsonResponse({'error': "Węzeł źródłowy jest offline."}, status=400)
+
+        if destination.status == "offline":
+            return JsonResponse({'error': "Węzeł docelowy jest offline."}, status=400)
+        print("OiRG Data Bts",data_bits)
         simulation_result = simulate_transmission(
             data=data_bits,
             key=key,
@@ -74,27 +85,27 @@ def simulate_transmission_view(request):
             packet_loss_percentage=packet_loss_percentage,
             error_params=error_params
         )
-
-        transmission = Transmission.objects.create(
-            source=source,
-            destination=destination,
-            data=data_bits,
-            delay=delay,
-            packet_loss_percentage=packet_loss_percentage,
-            error_info=({"error_type": simulation_result.get("error_type"),
-                         "error_count": simulation_result.get("error_count")}
-                        if simulation_result.get("error_type") else {})
-        )
-
-        EventLog.objects.create(
-            transmission=transmission,
-            crc_code=simulation_result.get("crc_remainder", ""),
-            error_type=simulation_result.get("error_type", ""),
-            error_count=simulation_result.get("error_count", 0),
-            verification_result=simulation_result.get("crc_verification", True),
-            details=f"Original codeword: {simulation_result.get('original_codeword')}, "
-                    f"After error: {simulation_result.get('error_injected_codeword')}"
-        )
+        print("simulation_result",simulation_result)
+        # transmission = Transmission.objects.create(
+        #     source=source,
+        #     destination=destination,
+        #     data=data_bits,
+        #     delay=delay,
+        #     packet_loss_percentage=packet_loss_percentage,
+        #     error_info=({"error_type": simulation_result.get("error_type"),
+        #                  "error_count": simulation_result.get("error_count")}
+        #                 if simulation_result.get("error_type") else {})
+        # )
+        # print("2")
+        # EventLog.objects.create(
+        #     transmission=transmission,
+        #     crc_code=simulation_result.get("crc_remainder", ""),
+        #     error_type=simulation_result.get("error_type", ""),
+        #     error_count=simulation_result.get("error_count", 0),
+        #     verification_result=simulation_result.get("crc_verification", True),
+        #     details=f"Original codeword: {simulation_result.get('original_codeword')}, "
+        #             f"After error: {simulation_result.get('error_injected_codeword')}"
+        # )
 
         return JsonResponse(simulation_result)
     except Exception as e:
@@ -124,11 +135,12 @@ def get_active_node(node_id):
     """
     try:
         node = Node.objects.get(id=int(node_id))
+        return  node
         # Sprawdzamy, czy węzeł ma powiązany ActiveConnection (relacja one-to-one o nazwie active_connection)
-        if hasattr(node, 'active_connection'):
-            return node
-        else:
-            return None
+        # if hasattr(node, 'active_connection'):
+        #     return node
+        # else:
+        #     return None
     except Node.DoesNotExist:
         return None
 def test_simulation_page(request):
@@ -166,7 +178,8 @@ def create_node(request):
         }, status=201)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-@csrf_exempt
+
+
 @require_POST
 def ensure_ten_online_nodes(request):
     try:
@@ -177,7 +190,7 @@ def ensure_ten_online_nodes(request):
         for i in range(nodes_to_create):
             node = Node.objects.create(
                 name=f"AutoNode {existing_online_nodes + i + 1}",
-                ip_address=f"127.0.0.{existing_online_nodes + i + 1}",
+                ip_address=f"127.0.0.1",
                 status="online"
             )
             created_nodes.append({
@@ -230,5 +243,32 @@ def shutdown_node(request):
         return JsonResponse({"status": f"Węzeł docelowy {node.name} został wyłączony."})
     except Node.DoesNotExist:
         return JsonResponse({"error": "Nie znaleziono węzła docelowego."}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+@csrf_exempt
+@require_POST
+def toggle_simulate_failure(request):
+    global simulate_failure
+    simulate_failure = not simulate_failure
+    print(f"simulate_failure: {simulate_failure}")
+    return JsonResponse({"simulate_failure": simulate_failure})
+
+@csrf_exempt
+@require_POST
+def shutdown_source_server(request):
+    try:
+        payload = json.loads(request.body)
+        source_id = payload.get("source_id")
+
+        if not source_id:
+            return JsonResponse({"error": "Brakuje ID serwera źródłowego."}, status=400)
+
+        node = Node.objects.get(id=source_id)
+        node.status = "offline"
+        node.save()
+        return JsonResponse({"status": f"Serwer źródłowy {node.name} został wyłączony."})
+    except Node.DoesNotExist:
+        return JsonResponse({"error": "Serwer źródłowy nie istnieje."}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

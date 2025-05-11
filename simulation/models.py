@@ -51,7 +51,7 @@ class EventLog(models.Model):
 
 class ActiveConnection(models.Model):
     """
-    Model rejestrujący aktywne połączenie danego węzła.
+    Model rejestruący aktywne połjączenie danego węzła.
     W momencie, gdy węzeł (Node) łączy się z systemem, tworzony jest wpis,
     a przy rozłączeniu – usuwany.
     """

@@ -59,6 +59,7 @@ def inject_error(data, error_type, error_count=1):
     return modified
 
 
+
 def simulate_transmission(data, key, delay=0.0, packet_loss_percentage=0.0, error_params=None):
     """
     Symulacja transmisji danych między węzłami.
@@ -91,28 +92,37 @@ def simulate_transmission(data, key, delay=0.0, packet_loss_percentage=0.0, erro
         result["error"] = "Packet lost during transmission"
         return result
     result["packet_lost"] = False
+    try:
+        # Obliczenie kodu CRC na oryginalnych danych
+        crc_instance = CRC()
+        print("Data Bits in crc", data)
+        encoded_data, remainder = crc_instance.encodedData(data, key)
+        print("encoded_data", encoded_data)
+        result["original_codeword"] = encoded_data
+        result["crc_remainder"] = remainder
+        print("error_params",error_params)
+        # Wprowadzenie błędów, jeśli parametr error_params jest przekazany
+        if error_params and error_params.get("error_type") != "none":
+            error_type = error_params.get("error_type")
+            error_count = error_params.get("error_count", 1)
+            error_injected_data = inject_error(encoded_data, error_type, error_count)
+            result["error_type"] = error_type
+            result["error_count"] = error_count
+            result["error_injected_codeword"] = error_injected_data
 
-    # Obliczenie kodu CRC na oryginalnych danych
-    crc_instance = CRC()
-    encoded_data, remainder = crc_instance.encodedData(data, key)
-    result["original_codeword"] = encoded_data
-    result["crc_remainder"] = remainder
+            # Weryfikacja transmisji z błędem przy użyciu CRC
+            is_valid = crc_instance.receiverSide(key, error_injected_data)
+            result["crc_verification"] = is_valid
+        else:
+            print("simulate_transmission else")
+            result["error_injected_codeword"] = encoded_data
+            print("pre is valid")
+            is_valid = crc_instance.receiverSide(key, encoded_data)
+            print("is_valid")
 
-    # Wprowadzenie błędów, jeśli parametr error_params jest przekazany
-    if error_params:
-        error_type = error_params.get("error_type")
-        error_count = error_params.get("error_count", 1)
-        error_injected_data = inject_error(encoded_data, error_type, error_count)
-        result["error_type"] = error_type
-        result["error_count"] = error_count
-        result["error_injected_codeword"] = error_injected_data
+            result["crc_verification"] = is_valid
 
-        # Weryfikacja transmisji z błędem przy użyciu CRC
-        is_valid = crc_instance.receiverSide(key, error_injected_data)
-        result["crc_verification"] = is_valid
-    else:
-        result["error_injected_codeword"] = encoded_data
-        is_valid = crc_instance.receiverSide(key, encoded_data)
-        result["crc_verification"] = is_valid
-
-    return result
+        return result
+    except Exception as e:
+        print(e)
+        result["error"] = f"An error occurred: {str(e)}"
