@@ -3,7 +3,7 @@
 import time
 import random
 from .crc import CRC
-
+from .models import SimulationState
 
 def flip_bit(data, index):
     """
@@ -81,6 +81,9 @@ def simulate_transmission(data, key, delay=0.0, packet_loss_percentage=0.0, erro
       - crc_verification: wynik weryfikacji CRC (True - brak błędu, False - wykryto błąd)
     """
     result = {}
+
+    state, _ = SimulationState.objects.get_or_create(key="simulate_failure")
+    print("simulate_failure status", state.value)
 
     # Symulacja opóźnienia transmisji
     time.sleep(delay)

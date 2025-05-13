@@ -60,3 +60,8 @@ class ActiveConnection(models.Model):
 
     def __str__(self):
         return f"Aktywne połączenie {self.node.name} od {self.connected_at}"
+
+
+class SimulationState(models.Model):
+    key = models.CharField(max_length=50, unique=True)
+    value = models.BooleanField(default=False)

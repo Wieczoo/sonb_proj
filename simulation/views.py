@@ -8,11 +8,12 @@ from django.views.decorators.http import require_POST,require_http_methods
 from .transmission import simulate_transmission
 from .models import Node, Transmission, EventLog
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.decorators import permission_required 
+from django.contrib.auth.decorators import permission_required
+from .models import SimulationState
 import logging
 logger = logging.getLogger(__name__)
 
-simulate_failure = False
+
 @require_POST
 def crc_view(request):
     try:
@@ -249,10 +250,11 @@ def shutdown_node(request):
 @csrf_exempt
 @require_POST
 def toggle_simulate_failure(request):
-    global simulate_failure
-    simulate_failure = not simulate_failure
-    print(f"simulate_failure: {simulate_failure}")
-    return JsonResponse({"simulate_failure": simulate_failure})
+    state, _ = SimulationState.objects.get_or_create(key="simulate_failure")
+    state.value = not state.value
+    state.save()
+    print(f"simulate_failure: {state.value}")
+    return JsonResponse({"simulate_failure": state.value})
 
 @csrf_exempt
 @require_POST
@@ -267,7 +269,9 @@ def shutdown_source_server(request):
         node = Node.objects.get(id=source_id)
         node.status = "offline"
         node.save()
-        return JsonResponse({"status": f"Serwer źródłowy {node.name} został wyłączony."})
+        return JsonResponse(    {"status": f"Serwer źródłowy {node.name} został wyłączony."
+                                ,"nodeid":source_id,
+                                 "state":node.status})
     except Node.DoesNotExist:
         return JsonResponse({"error": "Serwer źródłowy nie istnieje."}, status=404)
     except Exception as e:

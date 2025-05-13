@@ -4,7 +4,6 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from simulation.models import ActiveConnection, Node
-from simulation.views import simulate_failure
 
 class NodeConsumer(AsyncWebsocketConsumer):
     async def connect(self):
