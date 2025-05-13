@@ -204,3 +204,44 @@
   border: 1px solid #ccc;
   border-radius: 6px;
 }
+
+
+/* Stylizacja sekcji wizualizacji CRC */
+.crc-visualization {
+  background-color: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 15px;
+  width: 95%;
+  box-sizing: border-box;
+}
+
+.crc-visualization .sub-heading {
+  font-size: 1.2em;
+  color: #333;
+  margin-bottom: 10px;
+  text-align: center;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 5px;
+}
+
+.crc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.9em;
+  color: #555;
+}
+
+.crc-info p {
+  margin: 0;
+  padding: 5px 10px;
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 4px;
+}
+
+.crc-info p strong {
+  color: #333;
+}

@@ -49,7 +49,15 @@ const NetworkVisualizer = ({
               x={node.x}
               y={node.y}
               radius={NODE_RADIUS}
-              fill={isSelectedSource ? 'lightblue' : isSelectedDestination ? 'lightgreen' : 'lightgray'}
+              fill={
+                node.status === 'offline'
+                ? 'lightcoral'
+                : isSelectedSource
+                ? 'lightblue'
+                : isSelectedDestination
+                ? 'lightgreen'
+                : 'lightgray'
+              }
               stroke="black"
               strokeWidth={1}
               draggable
@@ -99,6 +107,8 @@ function App() {
   const [dataKey, setDataKey] = useState('');
   const [logs, setLogs] = useState([]);
   const [connections, setConnections] = useState([]);
+  const [serverStatus, setServerStatus] = useState(false);
+  const [dataResponseSimulation, setDataResponseSimulation] = useState(null);
 
   const addLog = useCallback((message) => {
     setLogs(prevLogs => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prevLogs]);
@@ -152,36 +162,46 @@ function App() {
   };
 
   const handleShutdownMaster = async () => {
-    if (!selectedSource) {
-      addLog('Nie wybrano węzła źródłowego do wyłączenia.');
-      return;
-    }
-
     try {
-      await axios.post(`http://${serverIp}:${serverPort}/simulation/shutdown_master/`, {
-        source_id: selectedSource,
-      });
-      addLog(`Węzeł źródłowy ${selectedSource} został wyłączony.`);
-      fetchNodes();
+       const response = await axios.post(`http://${serverIp}:${serverPort}/simulation/toggle-simulate-failure/`);
+      if (response.status == '200') {
+        if(response.data.simulate_failure) {
+          addLog(`Serwer symulacji został wyłączony.`);
+          setServerStatus(response.data.simulate_failure)
+        }
+        else {  
+          addLog(`Serwer symulacji został włączony.`); 
+          setServerStatus(response.data.simulate_failure)
+        }
+      }
+      else {
+        addLog(`Serwera symulacji nie udało się wyłaczyć.`);
+      }
     } catch (error) {
-      addLog(`Błąd przy wyłączaniu węzła źródłowego ${selectedSource}: ${error.message}`);
+      addLog(`Błąd przy wyłączaniu serwera: ${error.message}`);
     }
   };
 
   const handleShutdownNode = async () => {
-    if (!selectedDestination) {
-      addLog('Nie wybrano węzła docelowego do wyłączenia.');
+    if (!selectedSource) {
+      addLog('Nie wybrano węzła zródłowego do wyłączenia.');
       return;
     }
 
     try {
-      await axios.post(`http://${serverIp}:${serverPort}/simulation/shutdown_node/`, {
-        destination_id: selectedDestination,
+      const response = await axios.post(`http://${serverIp}:${serverPort}/simulation/shutdown-source-server/`, {
+        source_id: selectedSource,
       });
-      addLog(`Węzeł docelowy ${selectedDestination} został wyłączony.`);
-      fetchNodes();
+      addLog(`Węzeł zródłowego ${selectedSource} został wyłączony.`);
+      setNodes(prevNodes =>
+        prevNodes.map(node =>
+          node.id === response.data.nodeid
+        ? { ...node, status: response.data.state }
+        : node
+        )
+      );
     } catch (error) {
-      addLog(`Błąd przy wyłączaniu węzła docelowego ${selectedDestination}: ${error.message}`);
+      addLog(`Błąd przy wyłączaniu węzła docelowego ${selectedSource}: ${error.message}`);
     }
   };
 
@@ -237,6 +257,7 @@ function App() {
       },
     })
       .then(response => {
+        setDataResponseSimulation(response.data);  
         addLog(`Symulacja zakończona sukcesem: ${JSON.stringify(response.data)}`);
       })
       .catch(error => {
@@ -294,17 +315,21 @@ function App() {
       </div>
 
       {/* Actions */}
-      <div className="actions">
-        <button onClick={handleCreateTenNodes} className="button">Utwórz 10 węzłów</button>
-        <button onClick={handleShutdownMaster} className="button button-danger" disabled={!selectedSource}>
-          Wyłącz źródłowy węzeł
-        </button>
-        <button onClick={handleShutdownNode} className="button button-warning" disabled={!selectedDestination}>
-          Wyłącz docelowy węzeł
-        </button>
-      </div>
+        <div className="actions">
+          <button onClick={handleCreateTenNodes} className="button">Utwórz nowe 10 węzłów</button>
+          <button 
+            onClick={handleShutdownMaster} 
+            className="button" 
+            style={{ backgroundColor: serverStatus ? '' : 'red' }}
+          >
+            {serverStatus ?  'Włącz serwer' :'Wyłącz serwer'}
+          </button>
+          <button onClick={handleShutdownNode} className="button button-danger" disabled={!selectedSource}>
+            Wyłącz wybrany źródłowy węzeł
+          </button>
+        </div>
 
-      {/* Simulation Control */}
+        {/* Simulation Control */}
       <div className="simulation-control">
         <h2 className="sub-heading">Kontrola Symulacji</h2>
         <div className="info">
@@ -355,7 +380,24 @@ function App() {
           Rozpocznij Symulację
         </button>
       </div>
-
+{/* Visualization of CRC verification */}
+<div className="crc-visualization">
+  <h2 className="sub-heading">Wizualizacja CRC</h2>
+  {dataResponseSimulation ? (
+    <div className="crc-info">
+      <p><strong>Opóźnienie:</strong> {dataResponseSimulation.delay}s</p>
+      <p><strong>Utrata pakietu:</strong> {dataResponseSimulation.packet_lost ? 'Tak' : 'Nie'}</p>
+      <p><strong>Oryginalny kod:</strong> {dataResponseSimulation.original_codeword}</p>
+      <p><strong>Reszta CRC:</strong> {dataResponseSimulation.crc_remainder}</p>
+      <p><strong>Typ błędu:</strong> {dataResponseSimulation.error_type}</p>
+      <p><strong>Liczba błędów:</strong> {dataResponseSimulation.error_count}</p>
+      <p><strong>Kod z wstrzykniętym błędem:</strong> {dataResponseSimulation.error_injected_codeword}</p>
+      <p><strong>Weryfikacja CRC:</strong> {dataResponseSimulation.crc_verification ? 'Poprawna' : 'Niepoprawna'}</p>
+    </div>
+  ) : (
+    <p>Brak danych do wizualizacji. Uruchom symulację, aby zobaczyć wyniki.</p>
+  )}
+</div>
       {/* Logs */}
       <div className="logs">
         <h2 className="sub-heading">Logi</h2>
